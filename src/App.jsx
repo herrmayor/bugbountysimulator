@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CASES, OPTION_BANK, TEXT, TRIAGE_EVENTS } from './game/content.js';
 import { MODES, SEVERITIES, getRank, gradeRound, seededDailyIndex } from './game/scoring.js';
+
+const LEADERBOARD_KEY = 'bb-sim-leaderboard-v1';
+const EMPTY_ANSWERS = { severity: '', scope: '', proof: '', fix: '', impact: '' };
 
 function shuffle(items) {
   return [...items].sort(() => Math.random() - 0.5);
@@ -13,10 +16,25 @@ function makeDeck() {
   return [daily, ...rest];
 }
 
-const EMPTY_ANSWERS = { severity: '', scope: '', proof: '', fix: '', impact: '' };
+function loadLeaderboard() {
+  try {
+    return JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveLeaderboard(entry) {
+  const current = loadLeaderboard();
+  const next = [entry, ...current]
+    .sort((a, b) => b.money - a.money || b.rep - a.rep || a.mental - b.mental)
+    .slice(0, 10);
+  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(next));
+  return next;
+}
 
 export default function App() {
-  const [lang, setLang] = useState('ru');
+  const [lang, setLang] = useState('en');
   const [modeId, setModeId] = useState('hunter');
   const [deck, setDeck] = useState(() => makeDeck());
   const [index, setIndex] = useState(0);
@@ -31,6 +49,8 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [runStarted, setRunStarted] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [leaderboard, setLeaderboard] = useState(() => loadLeaderboard());
+  const [savedThisRun, setSavedThisRun] = useState(false);
 
   const t = TEXT[lang];
   const mode = MODES[modeId];
@@ -42,13 +62,29 @@ export default function App() {
   const fixOptions = useMemo(() => shuffle(bug.options.fix), [bug]);
   const impactOptions = useMemo(() => shuffle(bug.options.impact), [bug]);
 
+  const rank = getRank({ money, rep, mental, cards: unlocked.length, lang });
   const shareText = useMemo(() => {
-    const rank = getRank({ money, rep, mental, cards: unlocked.length, lang });
     if (lang === 'ru') {
-      return `Я набрал $${money.toLocaleString()} в Bug Bounty Simulator. Ранг: ${rank}. Карточек: ${unlocked.length}. ${t.shareSuffix}`;
+      return `Я набрал $${money.toLocaleString()} в Bug Bounty Simulator. Ранг: ${rank}. Карточек: ${unlocked.length}. Сможешь побить мой результат?`;
     }
-    return `I made $${money.toLocaleString()} in Bug Bounty Simulator. Rank: ${rank}. Cards: ${unlocked.length}. ${t.shareSuffix}`;
-  }, [money, rep, mental, unlocked.length, lang, t.shareSuffix]);
+    return `I made $${money.toLocaleString()} in Bug Bounty Simulator. Rank: ${rank}. Cards: ${unlocked.length}. Can you beat my run?`;
+  }, [money, rep, mental, unlocked.length, lang, rank]);
+
+  useEffect(() => {
+    if (!gameOver || savedThisRun) return;
+    const entry = {
+      id: crypto?.randomUUID?.() || String(Date.now()),
+      money,
+      rep,
+      mental,
+      cards: unlocked.length,
+      mode: mode.label.en,
+      rank,
+      date: new Date().toISOString().slice(0, 10)
+    };
+    setLeaderboard(saveLeaderboard(entry));
+    setSavedThisRun(true);
+  }, [gameOver, savedThisRun, money, rep, mental, unlocked.length, mode.label.en, rank]);
 
   function reset(nextMode = modeId) {
     setModeId(nextMode);
@@ -65,6 +101,7 @@ export default function App() {
     setCopied(false);
     setGameOver(false);
     setRunStarted(false);
+    setSavedThisRun(false);
   }
 
   function setAnswer(key, value) {
@@ -111,10 +148,9 @@ export default function App() {
 
   function nextCase() {
     const nextIndex = index + 1;
-    const currentMental = mental;
     setReview(null);
     setAnswers(EMPTY_ANSWERS);
-    if (nextIndex >= mode.rounds || currentMental >= 100) {
+    if (nextIndex >= mode.rounds || mental >= 100) {
       setGameOver(true);
       return;
     }
@@ -125,6 +161,11 @@ export default function App() {
     navigator.clipboard?.writeText(shareText);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
+  }
+
+  function clearLeaderboard() {
+    localStorage.removeItem(LEADERBOARD_KEY);
+    setLeaderboard([]);
   }
 
   if (!runStarted) {
@@ -143,6 +184,7 @@ export default function App() {
           <InfoCard title={t.daily} body={`${deck[0].title[lang]} · ${deck[0].tag}`} hot />
           <InfoCard title={t.mechanics} body={t.rules.join(' ')} />
         </div>
+        <Leaderboard t={t} rows={leaderboard} onClear={clearLeaderboard} />
         <button className="primary big" onClick={() => setRunStarted(true)}>{t.start}</button>
       </Shell>
     );
@@ -212,8 +254,9 @@ export default function App() {
             <Panel title={t.collection}>
               {unlocked.length === 0 ? <p className="muted">No cards yet.</p> : <div className="cards-list">{unlocked.map((card) => <span key={card}>🏆 {card}</span>)}</div>}
             </Panel>
+            <Leaderboard t={t} rows={leaderboard} onClear={clearLeaderboard} compact />
             <Panel title={t.review}>
-              {history.length === 0 ? <p className="muted">No reports yet.</p> : history.map((item) => <HistoryItem key={item.id} item={item} t={t} />)}
+              {history.length === 0 ? <p className="muted">No reports yet.</p> : history.map((item) => <HistoryItem key={item.id} item={item} t={t} lang={lang} />)}
             </Panel>
             <Panel title={t.mechanics}>
               <ul>{t.rules.map((rule) => <li key={rule}>{rule}</li>)}</ul>
@@ -221,7 +264,7 @@ export default function App() {
           </aside>
         </main>
       ) : (
-        <EndScreen t={t} lang={lang} money={money} rep={rep} mental={mental} unlocked={unlocked} shareText={shareText} copied={copied} copyShare={copyShare} reset={() => reset(modeId)} />
+        <EndScreen t={t} lang={lang} money={money} rep={rep} mental={mental} unlocked={unlocked} shareText={shareText} copied={copied} copyShare={copyShare} reset={() => reset(modeId)} leaderboard={leaderboard} clearLeaderboard={clearLeaderboard} />
       )}
     </Shell>
   );
@@ -252,6 +295,25 @@ function Stat({ label, value, danger }) {
 
 function Panel({ title, children }) {
   return <section className="panel"><h3>{title}</h3>{children}</section>;
+}
+
+function Leaderboard({ t, rows, onClear, compact = false }) {
+  return (
+    <Panel title={t.leaderboard || 'Leaderboard'}>
+      {rows.length === 0 ? <p className="muted">No scores yet. Finish a run to save your first score.</p> : (
+        <div className="leaderboard">
+          {rows.slice(0, compact ? 5 : 10).map((row, index) => (
+            <div className="leader-row" key={row.id}>
+              <b>#{index + 1}</b>
+              <span>${row.money.toLocaleString()}</span>
+              <small>{row.rank} · {row.mode} · {row.cards} cards · {row.date}</small>
+            </div>
+          ))}
+        </div>
+      )}
+      {rows.length > 0 && <button className="ghost mini" onClick={onClear}>Clear leaderboard</button>}
+    </Panel>
+  );
 }
 
 function ChoiceGroup({ title, options, value, onPick, label = (v) => v, long = false }) {
@@ -289,11 +351,11 @@ function Review({ t, lang, review, onNext }) {
   );
 }
 
-function HistoryItem({ item, t }) {
-  return <div className="history"><b>{t.statuses[item.result.status]}</b><span>{item.bug.title.ru}</span><small>+${item.money} · {item.result.points}/100</small></div>;
+function HistoryItem({ item, t, lang }) {
+  return <div className="history"><b>{t.statuses[item.result.status]}</b><span>{item.bug.title[lang]}</span><small>+${item.money} · {item.result.points}/100</small></div>;
 }
 
-function EndScreen({ t, lang, money, rep, mental, unlocked, shareText, copied, copyShare, reset }) {
+function EndScreen({ t, lang, money, rep, mental, unlocked, shareText, copied, copyShare, reset, leaderboard, clearLeaderboard }) {
   const rank = getRank({ money, rep, mental, cards: unlocked.length, lang });
   return (
     <motion.section className="end" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
@@ -302,6 +364,7 @@ function EndScreen({ t, lang, money, rep, mental, unlocked, shareText, copied, c
       <p>{t.bounty}: <b>${money.toLocaleString()}</b> · {t.rep}: <b>{rep}</b> · {t.mental}: <b>{mental}%</b> · {t.cards}: <b>{unlocked.length}</b></p>
       <pre>{shareText}</pre>
       <div className="end-actions"><button className="primary" onClick={copyShare}>{copied ? t.copied : t.copy}</button><button className="ghost" onClick={reset}>{t.playAgain}</button></div>
+      <Leaderboard t={t} rows={leaderboard} onClear={clearLeaderboard} />
       <div className="cards-list bigcards">{unlocked.map((card) => <span key={card}>🏆 {card}</span>)}</div>
     </motion.section>
   );
