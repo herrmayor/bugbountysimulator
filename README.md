@@ -41,3 +41,5 @@ npm test
 ## Deploy to GitHub Pages
 
 The repository includes a GitHub Actions workflow. Enable GitHub Pages in repository settings and choose GitHub Actions as the source.
+
+Latest deploy trigger: manual setup check.
