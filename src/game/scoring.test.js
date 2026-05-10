@@ -59,7 +59,27 @@ describe('scoring engine', () => {
     expect(result.money).toBe(40);
   });
 
-  it('rewards partial reports when only the fix is correct', () => {
+  it('rewards partial reports when the severity is close and the fix is correct', () => {
+    const result = gradeRound({
+      bug,
+      mode: MODES.hunter,
+      combo: 0,
+      randomValue: 0.99,
+      answers: {
+        severity: 'Medium',
+        scope: 'IN_SCOPE',
+        proof: 'DRAIN_FUNDS',
+        fix: 'TRUST_PROXY',
+        impact: 'RECON_ONLY'
+      }
+    });
+
+    expect(result.status).toBe('PARTIAL');
+    expect(result.correctness.fixCorrect).toBe(true);
+    expect(result.points).toBeGreaterThanOrEqual(58);
+  });
+
+  it('rejects reports that only guess the fix but miss severity, proof, and impact', () => {
     const result = gradeRound({
       bug,
       mode: MODES.hunter,
@@ -74,7 +94,7 @@ describe('scoring engine', () => {
       }
     });
 
-    expect(result.status).toBe('PARTIAL');
+    expect(result.status).toBe('REJECTED');
     expect(result.correctness.fixCorrect).toBe(true);
   });
 
