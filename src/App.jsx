@@ -4,6 +4,7 @@ import { CASES, OPTION_BANK, TEXT, TRIAGE_EVENTS } from './game/content.js';
 import { MODES, SEVERITIES, getRank, gradeRound, seededDailyIndex } from './game/scoring.js';
 
 const LEADERBOARD_KEY = 'bb-sim-leaderboard-v1';
+const GAME_URL = 'https://herrmayor.github.io/bugbountysimulator/';
 const EMPTY_ANSWERS = { severity: '', scope: '', proof: '', fix: '', impact: '' };
 
 function shuffle(items) {
@@ -65,9 +66,9 @@ export default function App() {
   const rank = getRank({ money, rep, mental, cards: unlocked.length, lang });
   const shareText = useMemo(() => {
     if (lang === 'ru') {
-      return `Я набрал $${money.toLocaleString()} в Bug Bounty Simulator. Ранг: ${rank}. Карточек: ${unlocked.length}. Сможешь побить мой результат?`;
+      return `Я набрал $${money.toLocaleString()} в Bug Bounty Simulator. Ранг: ${rank}. Карточек: ${unlocked.length}. Сможешь побить мой результат?\n\nPlay: ${GAME_URL}\n\n#bugbounty #infosec #web3security`;
     }
-    return `I made $${money.toLocaleString()} in Bug Bounty Simulator. Rank: ${rank}. Cards: ${unlocked.length}. Can you beat my run?`;
+    return `I made $${money.toLocaleString()} in Bug Bounty Simulator. Rank: ${rank}. Cards: ${unlocked.length}. Can you beat my run?\n\nPlay: ${GAME_URL}\n\n#bugbounty #infosec #web3security`;
   }, [money, rep, mental, unlocked.length, lang, rank]);
 
   useEffect(() => {
