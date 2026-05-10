@@ -59,7 +59,7 @@ describe('scoring engine', () => {
     expect(result.money).toBe(40);
   });
 
-  it('rewards partial reports when the severity is close and the fix is correct', () => {
+  it('rewards partial reports when severity is close and enough supporting choices are correct', () => {
     const result = gradeRound({
       bug,
       mode: MODES.hunter,
@@ -70,13 +70,15 @@ describe('scoring engine', () => {
         scope: 'IN_SCOPE',
         proof: 'DRAIN_FUNDS',
         fix: 'TRUST_PROXY',
-        impact: 'RECON_ONLY'
+        impact: 'ACCOUNT_TAKEOVER'
       }
     });
 
     expect(result.status).toBe('PARTIAL');
     expect(result.correctness.fixCorrect).toBe(true);
+    expect(result.correctness.impactCorrect).toBe(true);
     expect(result.points).toBeGreaterThanOrEqual(58);
+    expect(result.points).toBeLessThan(86);
   });
 
   it('rejects reports that only guess the fix but miss severity, proof, and impact', () => {
