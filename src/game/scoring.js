@@ -41,8 +41,8 @@ export function gradeRound({ bug, answers, mode = MODES.hunter, combo = 0, rando
   if (impactCorrect) points += 14;
 
   let status = 'REJECTED';
-  if (duplicate) status = 'DUPLICATE';
-  else if (!scopeCorrect && !inScope) status = 'OUT_OF_SCOPE';
+  if (!inScope) status = scopeCorrect ? 'OUT_OF_SCOPE' : 'REJECTED';
+  else if (duplicate) status = 'DUPLICATE';
   else if (points >= 86) status = bug.boss ? 'BOSS_DEFEATED' : 'TRIAGED';
   else if (points >= 58) status = 'PARTIAL';
 
@@ -56,7 +56,7 @@ export function gradeRound({ bug, answers, mode = MODES.hunter, combo = 0, rando
   let rep = Math.round(points / 12);
   if (status === 'REJECTED') rep = -4;
   if (status === 'DUPLICATE') rep = 1 + (proofCorrect ? 1 : 0);
-  if (status === 'OUT_OF_SCOPE') rep = scopeCorrect ? 2 : -2;
+  if (status === 'OUT_OF_SCOPE') rep = scopeCorrect ? 4 : -2;
 
   let mental = 18;
   if (status === 'TRIAGED') mental = -10;
